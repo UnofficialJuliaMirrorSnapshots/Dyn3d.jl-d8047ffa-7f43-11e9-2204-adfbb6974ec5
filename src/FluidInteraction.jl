@@ -59,7 +59,7 @@ direction, with the left-bottom corner as origin.
 If 2d body in x-y plane is constructed in `ViscousFlow`, this function doesn't
 need to be called.
 """
-function CutOut2d(bd::BodyDyn,bgs::Vector{BodyGrid})
+function CutOut2d(bd::BodyDyn,bgs::Vector{BodyGrid};gap::Float64=1.0)
     if bd.sys.ndim == 2 && bd.bs[1].nverts == 4
         for i = 1:length(bgs)
             nverts = bd.bs[bgs[i].bid].nverts
@@ -70,6 +70,17 @@ function CutOut2d(bd::BodyDyn,bgs::Vector{BodyGrid})
             bgs[i].v_i = bgs[i].v_i[end:-1:end-cutout]
             bgs[i].f_ex3d = bgs[i].f_ex3d[end:-1:end-cutout]
             bgs[i].m_ex3d = bgs[i].m_ex3d[end:-1:end-cutout]
+        end
+        # if there's no gap between connected bodies, cut the first point of child body
+        if gap == 0.0
+            for i = 2:length(bgs)
+                bgs[i].np -= 1
+                bgs[i].points = bgs[i].points[2:end]
+                bgs[i].q_i = bgs[i].q_i[2:end]
+                bgs[i].v_i = bgs[i].v_i[2:end]
+                bgs[i].f_ex3d = bgs[i].f_ex3d[2:end]
+                bgs[i].m_ex3d = bgs[i].m_ex3d[2:end]
+            end
         end
     else error("function Cutout2d currently only support quadrilateral shape.")
     end
@@ -185,6 +196,40 @@ Given external 3d linear fluid force f_ex of each body point contained in update
 bgs structure, do intergral to return integrated 6d body force([torque,force])
 exerting on the beginning of current body, desribed in inertial frame.
 """
+# function IntegrateBodyGridDynamics(bd::BodyDyn, bgs::Vector{BodyGrid})
+#     @getfield bd (bs,sys)
+#     # pointer to pre-allocated array
+#     @getfield sys.pre_array (la_tmp1, la_tmp2)
+#
+#     # temporary memory
+#     r_temp1 = zeros(Float64,6)
+#     r_temp2 = zeros(Float64,6)
+#     f_temp = zeros(Float64,6)
+#     Xic_to_i = zeros(Float64,6,6)
+#
+#     for i = 1:length(bgs)
+#         b = bs[bgs[i].bid]
+#         bgs[i].f_ex6d = zeros(Float64,6)
+#         for j = 1:bgs[i].np
+#             # linear force in inertial grid coord
+#             f_temp .= 0.0
+#             f_temp[1:3] .= bgs[i].m_ex3d[j]
+#             f_temp[4:6] .= bgs[i].f_ex3d[j]
+#             # # get transform matrix from grid points in inertial frame to the origin of inertial frame
+#             # r_temp1 .= 0.0
+#             # r_temp1[4:6] .= bgs[i].points[1] .- bgs[i].points[j]
+#             # r_temp1 .= b.Xb_to_i*r_temp1
+#             # r_temp2 .= 0.0
+#             # r_temp2[4:6] .= -b.x_i .+ r_temp1[4:6]
+#             # Xic_to_i = TransMatrix(r_temp2,la_tmp1,la_tmp2)
+#             # # express force in inertial frame at origin
+#             # f_temp .= inv(Xic_to_i')*f_temp
+#             bgs[i].f_ex6d .+= f_temp
+#         end
+#     end
+#     return bgs
+# end
+
 function IntegrateBodyGridDynamics(bd::BodyDyn, bgs::Vector{BodyGrid})
     @getfield bd (bs,sys)
     # pointer to pre-allocated array
@@ -205,19 +250,20 @@ function IntegrateBodyGridDynamics(bd::BodyDyn, bgs::Vector{BodyGrid})
             f_temp[1:3] .= bgs[i].m_ex3d[j]
             f_temp[4:6] .= bgs[i].f_ex3d[j]
             # get transform matrix from grid points in inertial frame to the origin of inertial frame
-            r_temp1 .= 0.0
-            r_temp1[4:6] .= bgs[i].points[1] .- bgs[i].points[j]
-            r_temp1 .= b.Xb_to_i*r_temp1
-            r_temp2 .= 0.0
-            r_temp2[4:6] .= -b.x_i .+ r_temp1[4:6]
-            Xic_to_i = TransMatrix(r_temp2,la_tmp1,la_tmp2)
-            # express force in inertial frame at origin
-            f_temp .= inv(Xic_to_i')*f_temp
+            # r_temp1 .= 0.0
+            # r_temp1[4:6] .= bgs[i].points[1] .- bgs[i].points[j]
+            # r_temp1 .= b.Xb_to_i*r_temp1
+            # r_temp2 .= 0.0
+            # r_temp2[4:6] .= -b.x_i .+ r_temp1[4:6]
+            # r_temp2[4:6] .= -bgs[i].q_i[j]
+
+            # Xic_to_i = TransMatrix(r_temp2,la_tmp1,la_tmp2)
+            # # express force in inertial frame at origin
+            # f_temp .= inv(Xic_to_i')*f_temp
             bgs[i].f_ex6d .+= f_temp
         end
     end
     return bgs
 end
-
 
 end
